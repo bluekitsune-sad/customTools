@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from .interfaces import (
     HotkeyManager,
+    WindowInputController,
     WindowMovementController,
     WindowOpacityController,
     WindowProvider,
@@ -16,6 +17,7 @@ from .interfaces import (
 class Backend:
     windows: WindowProvider
     opacity: WindowOpacityController
+    input: WindowInputController
     movement: WindowMovementController
     hotkeys: HotkeyManager
 
@@ -23,4 +25,5 @@ class Backend:
         """Best-effort cleanup so no window is left transparent or pinned."""
         self.hotkeys.unregister()
         self.movement.unlock()
+        self.input.disable_all_click_through()
         self.opacity.restore_all()

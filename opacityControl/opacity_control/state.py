@@ -21,10 +21,26 @@ DEFAULT_OPACITY = 100
 class Mode(str, Enum):
     MOVE = "move"
     INTERACTIVE = "interactive"
+    CLICK_THROUGH = "click-through"
 
     @property
     def label(self) -> str:
-        return "Move Mode" if self is Mode.MOVE else "Interactive Mode"
+        return {
+            Mode.MOVE: "Move Mode",
+            Mode.INTERACTIVE: "Interactive Mode",
+            Mode.CLICK_THROUGH: "Click-through Mode",
+        }[self]
+
+    @property
+    def hint(self) -> str:
+        return {
+            Mode.MOVE: "Position unlocked: drag the window by its title bar. Input stays live.",
+            Mode.INTERACTIVE: "Position locked: use the window normally.",
+            Mode.CLICK_THROUGH: (
+                "Mouse clicks pass to the window behind. "
+                "Use the shortcut or Restore & Exit Mode to recover."
+            ),
+        }[self]
 
 
 class StateError(RuntimeError):
@@ -63,6 +79,11 @@ class WindowState:
         if self.target is None:
             raise StateError("Cannot enter Interactive Mode without a target window.")
         return replace(self, mode=Mode.INTERACTIVE)
+
+    def in_click_through_mode(self) -> "WindowState":
+        if self.target is None:
+            raise StateError("Cannot enter Click-through Mode without a target window.")
+        return replace(self, mode=Mode.CLICK_THROUGH)
 
     def restored(self) -> "WindowState":
         """Return to Move Mode at full opacity, keeping the target."""

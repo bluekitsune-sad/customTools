@@ -1,4 +1,4 @@
-"""Platform boundary for window enumeration, opacity, movement and hotkeys.
+"""Platform boundary for window enumeration, opacity, input, movement and hotkeys.
 
 Everything platform specific lives behind these protocols. A future Linux
 backend only has to provide implementations of them (see PRD section 6.2).
@@ -29,10 +29,25 @@ class WindowOpacityController(Protocol):
         """Set the opacity of ``window`` to ``percent`` (10-100)."""
 
     def restore(self, window: WindowInfo) -> None:
-        """Return ``window`` to full opacity and forget it."""
+        """Return ``window`` to full opacity, normal input and its original style."""
 
     def restore_all(self) -> None:
-        """Return every window touched by this controller to full opacity."""
+        """Return every window touched by this controller to its original state."""
+
+
+class WindowInputController(Protocol):
+    """Opt-in click-through: mouse input passes to the window behind.
+
+    This is an explicit mode only. It must never be used as a way to lock a
+    window's position, and it must always be reversible from outside the
+    target window.
+    """
+
+    def set_click_through(self, window: WindowInfo, enabled: bool) -> None:
+        """Toggle whether ``window`` ignores mouse input."""
+
+    def disable_all_click_through(self) -> None:
+        """Make every touched window receive input again."""
 
 
 class WindowMovementController(Protocol):

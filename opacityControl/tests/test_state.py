@@ -79,6 +79,18 @@ class ModeTests(unittest.TestCase):
         with self.assertRaises(StateError):
             WindowState().in_interactive_mode()
 
+    def test_click_through_mode_requires_target(self) -> None:
+        with self.assertRaises(StateError):
+            WindowState().in_click_through_mode()
+
+    def test_click_through_mode_keeps_opacity(self) -> None:
+        state = WindowState().select(make_window()).with_opacity(45)
+        through = state.in_click_through_mode()
+        self.assertIs(through.mode, Mode.CLICK_THROUGH)
+        self.assertEqual(through.opacity, 45)
+        self.assertEqual(through.mode.label, "Click-through Mode")
+        self.assertTrue(through.mode.hint)
+
     def test_entering_interactive_mode_keeps_opacity(self) -> None:
         state = WindowState().select(make_window()).with_opacity(60)
         self.assertEqual(state.in_interactive_mode().opacity, 60)
@@ -97,6 +109,15 @@ class ModeTests(unittest.TestCase):
         )
         self.assertIsNotNone(state.target)
         self.assertEqual(state.opacity, DEFAULT_OPACITY)
+        self.assertIs(state.mode, Mode.MOVE)
+
+    def test_restored_exits_click_through(self) -> None:
+        state = (
+            WindowState()
+            .select(make_window())
+            .in_click_through_mode()
+            .restored()
+        )
         self.assertIs(state.mode, Mode.MOVE)
 
     def test_state_is_immutable(self) -> None:

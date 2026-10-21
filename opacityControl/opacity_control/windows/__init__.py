@@ -3,18 +3,20 @@
 from __future__ import annotations
 
 from ..backend import Backend
+from .effects import WindowsWindowEffects
 from .hotkey import WindowsHotkeyManager
 from .movement import WindowsMovementController
-from .opacity import WindowsOpacityController
 from .provider import WindowsWindowProvider
 
 __all__ = ["Backend", "create_backend"]
 
 
 def create_backend() -> Backend:
+    effects = WindowsWindowEffects()
     return Backend(
         windows=WindowsWindowProvider(),
-        opacity=WindowsOpacityController(),
+        opacity=effects,
+        input=effects,
         movement=WindowsMovementController(),
         hotkeys=WindowsHotkeyManager(),
     )

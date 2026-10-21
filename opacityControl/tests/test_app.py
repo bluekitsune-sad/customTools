@@ -54,6 +54,24 @@ class FakeOpacity:
         self.applied.clear()
 
 
+class FakeInput:
+    def __init__(self) -> None:
+        self.click_through: set[int] = set()
+        self.calls: list[tuple[int, bool]] = []
+        self.disable_all_calls = 0
+
+    def set_click_through(self, window: WindowInfo, enabled: bool) -> None:
+        self.calls.append((window.handle, enabled))
+        if enabled:
+            self.click_through.add(window.handle)
+        else:
+            self.click_through.discard(window.handle)
+
+    def disable_all_click_through(self) -> None:
+        self.disable_all_calls += 1
+        self.click_through.clear()
+
+
 class FakeMovement:
     def __init__(self) -> None:
         self.locked: int | None = None
@@ -93,12 +111,14 @@ class AppTests(unittest.TestCase):
     def setUp(self) -> None:
         self.windows = FakeWindows()
         self.opacity = FakeOpacity()
+        self.input = FakeInput()
         self.movement = FakeMovement()
         self.hotkeys = FakeHotkeys()
         self.app = OpacityApp(
             Backend(
                 windows=self.windows,
                 opacity=self.opacity,
+                input=self.input,
                 movement=self.movement,
                 hotkeys=self.hotkeys,
             )
@@ -123,6 +143,7 @@ class AppTests(unittest.TestCase):
 
         self.assertIn(self.window.handle, self.opacity.restored)
         self.assertNotIn(self.window.handle, self.opacity.applied)
+        self.assertNotIn(self.window.handle, self.input.click_through)
 
     # -- opacity -----------------------------------------------------------
     def test_opacity_applied_to_target(self) -> None:
@@ -149,6 +170,7 @@ class AppTests(unittest.TestCase):
         self.app.enter_interactive_mode()
         self.assertEqual(self.movement.locked, self.window.handle)
         self.assertIs(self.app.state.mode, Mode.INTERACTIVE)
+        self.assertNotIn(self.window.handle, self.input.click_through)
 
     def test_move_mode_unlocks_movement(self) -> None:
         self.app.select_window(self.window)
@@ -171,16 +193,66 @@ class AppTests(unittest.TestCase):
         self.assertIs(self.app.state.mode, Mode.MOVE)
         self.assertIn("lock failed", self.app.notice or "")
 
+    # -- click-through -----------------------------------------------------
+    def test_click_through_locks_movement_and_enables_passthrough(self) -> None:
+        self.app.select_window(self.window)
+        self.app.enter_click_through_mode()
+
+        self.assertEqual(self.movement.locked, self.window.handle)
+        self.assertIn(self.window.handle, self.input.click_through)
+        self.assertIs(self.app.state.mode, Mode.CLICK_THROUGH)
+
+    def test_click_through_keeps_opacity(self) -> None:
+        self.app.select_window(self.window)
+        self.app.set_opacity(30)
+        self.app.enter_click_through_mode()
+        self.assertEqual(self.app.state.opacity, 30)
+        self.assertEqual(self.opacity.applied[self.window.handle], 30)
+
+    def test_switching_to_interactive_disables_click_through(self) -> None:
+        self.app.select_window(self.window)
+        self.app.enter_click_through_mode()
+        self.app.enter_interactive_mode()
+        self.assertNotIn(self.window.handle, self.input.click_through)
+        self.assertIs(self.app.state.mode, Mode.INTERACTIVE)
+
+    def test_switching_to_move_disables_click_through(self) -> None:
+        self.app.select_window(self.window)
+        self.app.enter_click_through_mode()
+        self.app.enter_move_mode()
+        self.assertNotIn(self.window.handle, self.input.click_through)
+        self.assertIs(self.app.state.mode, Mode.MOVE)
+        self.assertIsNone(self.movement.locked)
+
+    def test_click_through_requires_target(self) -> None:
+        self.app.enter_click_through_mode()
+        self.assertIs(self.app.state.mode, Mode.MOVE)
+        self.assertIsNotNone(self.app.notice)
+
+    def test_click_through_lock_failure_does_not_pass_through(self) -> None:
+        self.app.select_window(self.window)
+        self.movement.fail = True
+        self.app.enter_click_through_mode()
+        self.assertNotIn(self.window.handle, self.input.click_through)
+        self.assertIs(self.app.state.mode, Mode.MOVE)
+
+    def test_selecting_new_target_disables_click_through(self) -> None:
+        self.app.select_window(self.window)
+        self.app.enter_click_through_mode()
+        self.app.select_window(self.windows.windows[1])
+        self.assertNotIn(self.window.handle, self.input.click_through)
+
     # -- exit and recovery -------------------------------------------------
-    def test_deactivate_restores_opacity_and_movement(self) -> None:
+    def test_deactivate_restores_opacity_movement_and_input(self) -> None:
         self.app.select_window(self.window)
         self.app.set_opacity(20)
-        self.app.enter_interactive_mode()
+        self.app.enter_click_through_mode()
 
         self.app.deactivate()
 
         self.assertEqual(self.opacity.applied, {})
         self.assertIsNone(self.movement.locked)
+        self.assertNotIn(self.window.handle, self.input.click_through)
         self.assertEqual(self.app.state.opacity, 100)
         self.assertIs(self.app.state.mode, Mode.MOVE)
         self.assertIsNotNone(self.app.state.target)
@@ -197,28 +269,41 @@ class AppTests(unittest.TestCase):
         self.assertEqual(self.app.state.opacity, 100)
         self.assertIs(self.app.state.mode, Mode.MOVE)
 
+    def test_hotkey_escapes_click_through(self) -> None:
+        self.app.select_window(self.window)
+        self.app.enter_click_through_mode()
+
+        assert self.hotkeys.callback is not None
+        self.hotkeys.callback()
+        self.app.process_events()
+
+        self.assertNotIn(self.window.handle, self.input.click_through)
+        self.assertIs(self.app.state.mode, Mode.MOVE)
+
     def test_closed_target_clears_state(self) -> None:
         self.app.select_window(self.window)
         self.app.set_opacity(50)
-        self.app.enter_interactive_mode()
+        self.app.enter_click_through_mode()
 
         self.windows.alive.remove(self.window.handle)
         self.app.check_target()
 
         self.assertIsNone(self.app.state.target)
         self.assertIsNone(self.movement.locked)
+        self.assertNotIn(self.window.handle, self.input.click_through)
         self.assertIn("closed", (self.app.notice or "").lower())
 
     def test_shutdown_restores_everything(self) -> None:
         self.app.select_window(self.window)
         self.app.set_opacity(25)
-        self.app.enter_interactive_mode()
+        self.app.enter_click_through_mode()
 
         self.app.shutdown()
 
         self.assertFalse(self.hotkeys.registered)
         self.assertIsNone(self.movement.locked)
         self.assertEqual(self.opacity.restore_all_calls, 1)
+        self.assertEqual(self.input.disable_all_calls, 1)
         self.assertIsNone(self.app.state.target)
 
     def test_change_notification_fires(self) -> None:

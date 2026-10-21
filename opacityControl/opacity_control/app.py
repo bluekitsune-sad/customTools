@@ -78,6 +78,7 @@ class OpacityApp:
 
     # -- modes -------------------------------------------------------------
     def enter_move_mode(self) -> None:
+        self._set_click_through(False)
         self._backend.movement.unlock()
         try:
             self._state = self._state.in_move_mode()
@@ -92,6 +93,7 @@ class OpacityApp:
             self.notice = "Select a target window first."
             self._changed()
             return
+        self._set_click_through(False)
         try:
             self._backend.movement.lock(target)
         except RuntimeError as exc:
@@ -102,9 +104,28 @@ class OpacityApp:
         self.notice = None
         self._changed()
 
-    def deactivate(self) -> None:
-        """Restore full opacity and movement (FR-5)."""
+    def enter_click_through_mode(self) -> None:
+        """Pin the window and let mouse input reach the window behind it."""
         target = self._state.target
+        if target is None:
+            self.notice = "Select a target window first."
+            self._changed()
+            return
+        try:
+            self._backend.movement.lock(target)
+        except RuntimeError as exc:
+            self.notice = str(exc)
+            self._changed()
+            return
+        self._backend.input.set_click_through(target, True)
+        self._state = self._state.in_click_through_mode()
+        self.notice = None
+        self._changed()
+
+    def deactivate(self) -> None:
+        """Restore full opacity, input and movement (FR-5)."""
+        target = self._state.target
+        self._set_click_through(False)
         self._backend.movement.unlock()
         if target is not None:
             self._backend.opacity.restore(target)
@@ -129,6 +150,7 @@ class OpacityApp:
         if target is None:
             return
         if not self._backend.windows.is_available(target):
+            self._backend.input.set_click_through(target, False)
             self._backend.movement.unlock()
             self._state = self._state.clear_target()
             self.notice = "The target window was closed."
@@ -139,10 +161,16 @@ class OpacityApp:
         self._state = self._state.clear_target()
 
     # -- helpers -----------------------------------------------------------
+    def _set_click_through(self, enabled: bool) -> None:
+        target = self._state.target
+        if target is not None:
+            self._backend.input.set_click_through(target, enabled)
+
     def _release_target(self) -> None:
         target = self._state.target
         if target is None:
             return
+        self._set_click_through(False)
         self._backend.movement.unlock()
         self._backend.opacity.restore(target)
 

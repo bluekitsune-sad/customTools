@@ -306,6 +306,18 @@ def set_alpha(hwnd: int, alpha: int) -> bool:
     )
 
 
+def layered_alpha(hwnd: int) -> int | None:
+    """Return the current LWA_ALPHA value, or None if not set that way."""
+    color = DWORD(0)
+    alpha = wintypes.BYTE(0)
+    flags = DWORD(0)
+    if user32.GetLayeredWindowAttributes(
+        hwnd, ctypes.byref(color), ctypes.byref(alpha), ctypes.byref(flags)
+    ) and (flags.value & LWA_ALPHA):
+        return int(alpha.value)
+    return None
+
+
 def thread_id() -> int:
     return int(kernel32.GetCurrentThreadId())
 

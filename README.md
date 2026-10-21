@@ -9,7 +9,7 @@ or a dependency set.
 | Tool | Platform | What it does | Docs |
 | --- | --- | --- | --- |
 | **bgRemover** | Web (Flask) | Upload an image and get it back with the background removed, powered by [rembg](https://github.com/danielgatis/rembg). | [`bgRemover/README.md`](bgRemover/README.md) |
-| **opacityControl** | Windows desktop | Make a chosen application window transparent while keeping it fully interactive, and lock it in place when it is positioned. | [`opacityControl/README.md`](opacityControl/README.md) |
+| **opacityControl** | Windows desktop | Make a chosen application window transparent while keeping it interactive, lock it in place, and optionally click through to the app behind it. | [`opacityControl/README.md`](opacityControl/README.md) |
 
 ## Repository layout
 
@@ -52,8 +52,8 @@ python main.py
 ```
 
 Windows 10/11, Python 3.10+, no third-party packages. Pick a window, set the
-opacity, lock it in place, and press `Ctrl+Alt+Esc` (or the panel's
-**Restore & Exit Mode** button) to restore it.
+opacity, choose Move, Interactive or Click-through, and press `Ctrl+Alt+Esc`
+(or the panel's **Restore & Exit Mode** button) to restore it.
 
 ## Development
 

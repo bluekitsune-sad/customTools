@@ -6,7 +6,7 @@ Writing
 
 ## Interactive Window Transparency
 
-**Version:** 1.0\
+**Version:** 1.1\
 **Status:** Draft\
 **Initial platform:** Windows\
 **Future platform:** Linux\
@@ -18,10 +18,11 @@ Writing
 
 Interactive Window Transparency is a lightweight desktop utility that allows users to select a specific application window and adjust its opacity while continuing to interact with its contents.
 
-Users can make a window partially transparent, position it where they want, and switch between two modes:
+Users can make a window partially transparent, position it where they want, and switch between three modes:
 
 - **Move Mode:** The window can be repositioned and its opacity adjusted.
 - **Interactive Mode:** The window stays fixed in place and remains usable, allowing users to click buttons, type text, scroll, and interact with its contents normally.
+- **Click-through Mode:** The window stays fixed in place while mouse input passes to the window behind it, for overlay-style use. This mode is explicit and always reversible.
 
 A clear exit mechanism must always be available so users can easily deactivate transparency mode and return to normal window behavior.
 
@@ -47,6 +48,7 @@ The product should remain small in scope and avoid becoming a general-purpose wi
 - Allow the user to move the window before locking its position.
 - Prevent accidental movement while Interactive Mode is active.
 - Provide an obvious, reliable way to deactivate the feature.
+- Offer an explicit, reversible click-through mode for overlay-style use.
 - Support Windows as the initial platform.
 - Keep the architecture modular enough to support Linux in a future release.
 
@@ -58,7 +60,7 @@ The initial release will not include:
 - Making the entire desktop or multiple windows transparent simultaneously.
 - Per-application profiles or automatic opacity rules.
 - Window pinning, tiling, snapping, or advanced window management.
-- Click-through mode that passes mouse input to windows behind the transparent window.
+- Click-through mode that passes mouse input to windows behind the transparent window, except as the explicit, reversible mode defined in FR-7.
 - Custom scripts, macros, or automation.
 - Cloud synchronization or user accounts.
 - Plugin systems or a complex customization framework.
@@ -77,6 +79,7 @@ The initial release will not include:
 2. A user positions a terminal over another application, activates Interactive Mode, and types commands while keeping the terminal in place.
 3. A user adjusts the transparency level to find a comfortable balance between visibility and readability.
 4. A user exits Interactive Mode to move or resize the window again.
+5. A user keeps a reference window visible while working in the application behind it, with clicks passing through the reference window.
 
 ## 4\. Functional Requirements
 
@@ -195,6 +198,39 @@ The application must clearly communicate the current state.
 - The current state is visible in the utility at all times when it is open.
 - A mode change is reflected immediately in the interface.
 
+### FR-7: Click-through Mode
+
+Click-through Mode is an optional mode in which mouse input reaches the window
+behind the target, while the target remains visible and pinned in place.
+
+**Requirements:**
+
+- Provide an explicit control for entering the mode; it is never enabled
+  implicitly.
+- While active, mouse clicks over the target must reach the window behind it,
+  and the target must not be draggable or resizable with the mouse.
+- Lock the target's position while the mode is active.
+- Keep the target's opacity unchanged when entering or leaving the mode.
+- Keep keyboard input working normally for whichever window has focus.
+- Provide a clear visual indication and a short warning that clicks pass
+  through the target.
+- Keep the global exit shortcut and the panel's Restore control available at
+  all times, even though the target itself ignores the mouse.
+- Restore the target's original extended window style exactly when the mode is
+  left, including opacity applied before entering.
+
+**Acceptance criteria:**
+
+- A click over the target affects the window behind it, not the target.
+- The panel and the exit shortcut both return the target to normal input.
+- After leaving the mode, the target can be clicked normally again.
+- Restoring leaves no residual style changes on the target.
+
+**Safety note:** If the utility terminates abnormally while this mode is
+active, the target can keep ignoring the mouse until it is restarted. The mode
+must therefore never be the default state, and the utility must restore it on
+every normal exit path.
+
 ## 5\. User Experience
 
 ### Main interface
@@ -205,7 +241,7 @@ Suggested layout:
 
 - **Target Window:** Dropdown listing eligible windows.
 - **Opacity:** Slider from 10% to 100%, with a numeric percentage.
-- **Mode:** Move Mode / Interactive Mode toggle.
+- **Mode:** Move Mode / Interactive Mode / Click-through Mode selector.
 - **Status:** Clear indication of the current mode.
 - **Exit / Restore:** A prominent control to deactivate transparency and restore normal behavior.
 
@@ -219,8 +255,9 @@ Avoid complex navigation, dashboards, or multiple settings pages.
 4. Move the window into the desired position.
 5. Activate Interactive Mode.
 6. Use the target application normally while the window remains fixed.
-7. Press the exit shortcut or use the utility's Deactivate control.
-8. Return to Move Mode with the window restored to normal opacity.
+7. Optionally choose Click-through Mode to click through the target into the application behind it.
+8. Press the exit shortcut or use the utility's Deactivate control.
+9. Return to Move Mode with the window restored to normal opacity.
 
 ## 6\. Platform and Technical Requirements
 
@@ -235,6 +272,8 @@ The first version must target Windows desktop environments.
 - Apply opacity to the selected window without modifying unrelated windows.
 - Preserve mouse and keyboard input in Interactive Mode.
 - Implement movement locking without disabling all input.
+- Implement click-through as an opt-in extended window style, never as a way
+  to lock movement, and restore the original style on exit.
 - Handle window closure, minimization, restoration, and changes in foreground focus safely.
 - Ensure the exit shortcut remains available independently of the target window's input state.
 
@@ -248,6 +287,7 @@ The architecture should isolate platform-specific operations behind a small inte
 
 - `WindowProvider`: Enumerates and identifies application windows.
 - `WindowOpacityController`: Applies and restores opacity.
+- `WindowInputController`: Toggles click-through and restores input.
 - `WindowMovementController`: Controls whether the target can be moved.
 - `HotkeyManager`: Registers and handles the exit shortcut.
 - `WindowStateManager`: Tracks the target and current mode.
@@ -294,6 +334,7 @@ The initial implementation must consider:
 - The target window uses a custom title bar.
 - The selected application runs with a different privilege level.
 - The utility itself is closed while transparency is enabled.
+- The utility terminates abnormally while the target is click-through.
 - The selected window becomes inaccessible or is moved outside the visible screen area.
 
 For the first release, prioritize safe recovery and clear exit behavior over perfect support for every application.
@@ -348,6 +389,7 @@ The initial release is complete when:
 - [ ]The user can adjust its opacity from 10% to 100%.
 - [ ]The user can move the window in Move Mode.
 - [ ]The user can activate Interactive Mode to lock its position.
+- [ ]The user can opt into Click-through Mode and leave it with the global shortcut.
 - [ ]Mouse and keyboard interaction continue to work in Interactive Mode.
 - [ ]The user can deactivate the mode using a global shortcut.
 - [ ]Deactivation restores full opacity and normal movement.
@@ -357,9 +399,17 @@ The initial release is complete when:
 
 ## 12\. Key Product Decision
 
-**Transparency must not mean click-through.**
+**Interaction is the default; click-through is an explicit, reversible exception.**
 
-The central feature is a transparent but interactive window that can be temporarily locked in place. Users must retain control of the application and always have a dependable way to leave the mode.
+A transparent window must remain fully usable by default. Locking a window's
+position must never be implemented by disabling input or by letting clicks fall
+through. Click-through exists only as a clearly labelled mode that the user
+chooses deliberately, that keeps the target visible and pinned, and that can
+always be left through the panel or the global exit shortcut.
+
+The central feature remains a transparent but interactive window that can be
+temporarily locked in place. Users must retain control of the application and
+always have a dependable way to leave any mode.
 
 This distinction defines the product and should guide all implementation decisions.
 
