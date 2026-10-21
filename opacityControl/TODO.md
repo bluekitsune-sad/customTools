@@ -57,7 +57,9 @@ factory stages below; a phase is done only when its checks pass.
 
 - [x] Tool README with run instructions and limitations
 - [x] Repository homepage README listing all tools
-- [x] CI workflow running the unit tests on Windows and Linux
+- [ ] CI workflow — written at `.github/workflows/ci.yml` but not pushed yet:
+      the GitHub token used needs the `workflow` scope. Once the token is
+      updated, `git add .github && git commit && git push` enables it.
 - [x] Version 0.1.0 declared in `opacity_control/__init__.py`
 - [ ] Tagged release (`v0.1.0`)
 
