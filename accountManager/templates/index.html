@@ -104,8 +104,10 @@
             <span class="sr-only">Filter by record state</span>
             <select id="passwordFilter">
               <option value="">Any record state</option>
-              <option value="with">Has saved password</option>
-              <option value="without">No saved password</option>
+              <option value="with">Has app password</option>
+              <option value="without">No app password</option>
+              <option value="chrome-only">Needs import (Chrome only)</option>
+              <option value="missing">No password anywhere</option>
               <option value="email">Has email address</option>
               <option value="no-email">No email address</option>
             </select>
@@ -185,6 +187,7 @@
               <input id="fPassword" type="password" maxlength="1024" autocomplete="new-password" placeholder="Leave blank to keep current">
               <button type="button" id="toggleFormPassword" class="btn btn-ghost btn-small">Show</button>
             </span>
+            <span id="chromePasswordNote" class="field-note hidden">Chrome has an encrypted password for this account. It cannot be shown here until you import Chrome's password CSV.</span>
           </label>
         </div>
         <fieldset class="profiles-field">

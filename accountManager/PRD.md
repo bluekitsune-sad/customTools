@@ -445,6 +445,10 @@ Requirements:
 - Create missing accounts with the email or username and website, and link them to the source Chrome profile.
 - Merge with an existing account when the normalized service or website host matches and the email/username matches; preserve any password already stored.
 - Do not create a credential for metadata-only imports.
+- Record a non-secret flag when Chrome has an encrypted password blob; never store or display the ciphertext.
+- Show a **Chrome encrypted** indicator on accounts that have a Chrome password but no app password.
+- Provide filters for **Needs import (Chrome only)** and **No password anywhere**.
+- Show per-profile counts of Chrome-only encrypted passwords so the user knows which Chrome profiles still need an export.
 - Report locked or unreadable databases as warnings and continue with other profiles.
 - Log only counts and profile identifiers, never imported emails, usernames, or URLs.
 - Tell the user that encrypted passwords remain in Chrome and that passwords require Chrome's official CSV export.
@@ -747,7 +751,7 @@ Version 1.0 is considered ready when all of the following are true:
 21. Startup, scans, account changes, imports, exports, backups, and errors are written to a rotated local log without passwords, CSRF tokens, notes, or bookmark contents.
 22. Chrome's official password export CSV can be previewed and imported without reading or decrypting Chrome's credential database.
 23. Imported accounts can be tagged with the source Chrome profile, and Gmail usernames auto-link when exactly one profile matches.
-24. Chrome login metadata import creates or links accounts from emails/usernames and URLs without reading password content or decrypting `password_value`.
+24. Chrome login metadata import creates or links accounts from emails/usernames and URLs without reading password content or decrypting `password_value`, and marks Chrome-only passwords without displaying the ciphertext.
 
 ## 13\. Development Plan
 

@@ -66,6 +66,7 @@
     fNotes: $('fNotes'),
     fClearPassword: $('fClearPassword'),
     clearPasswordRow: $('clearPasswordRow'),
+    chromePasswordNote: $('chromePasswordNote'),
     toggleFormPassword: $('toggleFormPassword'),
     profileChecks: $('profileChecks'),
     importModal: $('importModal'),
@@ -370,6 +371,18 @@
       if (category && account.category !== category) return false;
       if (recordState === 'with' && !account.has_password) return false;
       if (recordState === 'without' && account.has_password) return false;
+      if (
+        recordState === 'chrome-only' &&
+        !(account.chrome_password_present && !account.has_password)
+      ) {
+        return false;
+      }
+      if (
+        recordState === 'missing' &&
+        (account.has_password || account.chrome_password_present)
+      ) {
+        return false;
+      }
       if (recordState === 'email' && !account.email) return false;
       if (recordState === 'no-email' && account.email) return false;
       if (query) {
@@ -568,6 +581,14 @@
           <div class="profile-counts">
             <span class="badge badge-success">${plural(profile.account_count || 0, 'account')}</span>
             <span class="badge">${plural(profile.bookmark_count || 0, 'bookmark')}</span>
+            ${
+              profile.chrome_password_count
+                ? `<span class="badge badge-warning">${plural(
+                    profile.chrome_password_count,
+                    'Chrome password'
+                  )} to import</span>`
+                : ''
+            }
             ${ok ? '' : '<span class="badge badge-warning">Bookmarks unreadable</span>'}
           </div>
         </article>`;
@@ -669,7 +690,9 @@
       ? `<button type="button" class="link-btn" data-action="reveal-password" data-id="${escapeHtml(
           account.id
         )}">••••••</button>`
-      : '<span class="muted">—</span>';
+      : account.chrome_password_present
+        ? `<span class="badge badge-warning" title="Chrome has an encrypted password for this account. Import Chrome's password CSV to use it here.">Chrome encrypted</span>`
+        : '<span class="muted">—</span>';
     return `<tr>
       <td class="primary-cell">${serviceCell}${websiteLine}</td>
       <td class="hide-md">${account.email ? escapeHtml(account.email) : '<span class="muted">—</span>'}</td>
@@ -834,9 +857,15 @@
     els.fPassword.placeholder =
       account && account.has_password
         ? 'Leave blank to keep the saved password'
-        : account
-        ? 'Optional password'
-        : 'Optional';
+        : account && account.chrome_password_present
+          ? 'Chrome has this encrypted; enter it or import the CSV'
+          : account
+            ? 'Optional password'
+            : 'Optional';
+    els.chromePasswordNote.classList.toggle(
+      'hidden',
+      !(account && account.chrome_password_present && !account.has_password)
+    );
 
     els.fService.value = account ? account.service || '' : prefill ? prefill.service || '' : '';
     els.fWebsite.value = account ? account.website || '' : prefill ? prefill.website || '' : '';

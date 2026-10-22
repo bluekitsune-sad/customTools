@@ -30,7 +30,8 @@ The application never uploads data anywhere.
   per-record selection; JSON export with an explicit plaintext-password warning.
 - **Chrome login metadata import** — pull saved emails, usernames, and website URLs
   from Chrome's `Login Data` and link each account to its Chrome profile. Passwords
-  stay encrypted in Chrome.
+  stay encrypted in Chrome. Accounts with a Chrome-only encrypted password show a
+  **Chrome encrypted** badge and can be filtered with **Needs import (Chrome only)**.
 - **Backups** — create, download, restore, and upload backup archives. Restoring
   creates a safety backup of the current data first.
 - **Step-by-step local logs** — startup, scans, account changes, imports, exports,
@@ -114,7 +115,12 @@ import Chrome's CSV.
 4. Close Chrome and retry if the app reports that a profile's login database is locked.
 
 This populates the Accounts view with the emails and usernames and shows their source
-profile. The encrypted password values are skipped.
+profile. The encrypted password values are skipped, but the app records a non-secret
+flag when Chrome has a password blob. Those rows show **Chrome encrypted** in the
+Password column. Use **Needs import (Chrome only)** to list them, or **No password
+anywhere** to find accounts Chrome does not have either. The Profiles view shows how
+many Chrome-only passwords each profile still has. The ciphertext is never stored or
+displayed.
 
 ### Importing saved Chrome passwords
 
@@ -237,7 +243,7 @@ copies too, not just `vault.json`.
 | No profiles found | Make sure Chrome has been launched at least once under this Windows user, then rescan. |
 | Scan found profiles/bookmarks but no accounts | Expected: scanning only profiles and bookmarks. Use **Data → Import Chrome logins** for emails/usernames, or import Chrome's password CSV for passwords. |
 | Chrome login import says the database is locked | Close Chrome, then run **Data → Import Chrome logins…** again. |
-| Accounts have no password after Chrome login import | Expected: password values are encrypted (`v20`) and are not decrypted. Import Chrome's password CSV for passwords. |
+| Accounts have no password after Chrome login import | Expected: password values are encrypted (`v20`) and are not decrypted. Rows with a Chrome copy show **Chrome encrypted**; filter by **Needs import (Chrome only)** and import Chrome's password CSV. |
 | Bookmarks missing | Close Chrome and rescan. Check the scan warnings panel. |
 | Port already in use | The app automatically picks the next free port; read the URL printed in the terminal. |
 | `accounts.json is not valid JSON` | Restore a backup or fix the file. The app preserves a copy as `accounts.corrupt-<hash>.json`. |

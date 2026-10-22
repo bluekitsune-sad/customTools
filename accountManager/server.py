@@ -175,6 +175,9 @@ def create_app(manager: AccountManager, csrf_token: str | None = None) -> Flask:
                     "updated_at": account.get("updated_at"),
                     "verified_at": account.get("verified_at"),
                     "has_password": account.get("credential_id") in with_password,
+                    "chrome_password_present": bool(
+                        account.get("chrome_password_present")
+                    ),
                 }
             )
         return output
@@ -209,10 +212,19 @@ def create_app(manager: AccountManager, csrf_token: str | None = None) -> Flask:
         bookmarks = manager.list_bookmarks()
         profile_doc = manager.profile_document()
         labels = labels or profile_label_map()
+        with_password = manager.credential_ids_with_password()
         counts: dict[str, int] = {}
+        chrome_password_counts: dict[str, int] = {}
         for account in accounts:
+            chrome_only = bool(account.get("chrome_password_present")) and (
+                account.get("credential_id") not in with_password
+            )
             for pid in account.get("chrome_profiles", []):
                 counts[pid] = counts.get(pid, 0) + 1
+                if chrome_only:
+                    chrome_password_counts[pid] = (
+                        chrome_password_counts.get(pid, 0) + 1
+                    )
         bookmark_counts: dict[str, int] = {}
         for bookmark in bookmarks:
             pid = bookmark.get("profile_id")
@@ -222,6 +234,9 @@ def create_app(manager: AccountManager, csrf_token: str | None = None) -> Flask:
             item = dict(profile)
             item["account_count"] = counts.get(profile.get("id"), 0)
             item["bookmark_count"] = bookmark_counts.get(profile.get("id"), 0)
+            item["chrome_password_count"] = chrome_password_counts.get(
+                profile.get("id"), 0
+            )
             item["label"] = labels.get(profile.get("id"), profile.get("display_name"))
             output.append(item)
         return output, profile_doc

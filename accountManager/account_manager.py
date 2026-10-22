@@ -194,6 +194,7 @@ class AccountManager:
             "username": cleaned["username"],
             "credential_id": None,
             "chrome_profiles": cleaned["chrome_profiles"],
+            "chrome_password_present": cleaned["chrome_password_present"],
             "category": cleaned["category"],
             "notes": cleaned["notes"],
             "created_at": now_iso(),
@@ -249,6 +250,8 @@ class AccountManager:
                 "updated_at": now_iso(),
             }
         )
+        if "chrome_password_present" in payload:
+            account["chrome_password_present"] = cleaned["chrome_password_present"]
 
         if payload.get("clear_password"):
             self._delete_credential(account.get("credential_id"))
@@ -393,12 +396,20 @@ class AccountManager:
             if password == "":
                 password = None
 
+        chrome_password_present = payload.get("chrome_password_present", False)
+        if not isinstance(chrome_password_present, bool):
+            raise ValidationError(
+                "Chrome password flag must be true or false.",
+                field="chrome_password_present",
+            )
+
         cleaned = {
             "service": service,
             "website": website,
             "email": email,
             "username": username,
             "chrome_profiles": profiles,
+            "chrome_password_present": chrome_password_present,
             "category": category,
             "notes": notes,
         }
@@ -685,7 +696,9 @@ class AccountManager:
                 if existing:
                     matched += 1
                     if self._link_profile_to_account(
-                        existing.get("id"), profile_id
+                        existing.get("id"),
+                        profile_id,
+                        bool(row.get("has_password_blob")),
                     ):
                         linked += 1
                     continue
@@ -696,6 +709,7 @@ class AccountManager:
                     "email": email,
                     "username": username_value,
                     "chrome_profiles": [profile_id],
+                    "chrome_password_present": bool(row.get("has_password_blob")),
                     "category": "Other",
                     "notes": "",
                 }
@@ -767,7 +781,10 @@ class AccountManager:
         return None
 
     def _link_profile_to_account(
-        self, account_id: str | None, profile_id: str
+        self,
+        account_id: str | None,
+        profile_id: str,
+        chrome_password_present: bool | None = None,
     ) -> bool:
         if not account_id:
             return False
@@ -781,16 +798,23 @@ class AccountManager:
         profile_ids = account.get("chrome_profiles")
         if not isinstance(profile_ids, list):
             profile_ids = []
-        if profile_id in profile_ids:
-            return False
-        profile_ids.append(profile_id)
-        account["chrome_profiles"] = profile_ids
-        account["updated_at"] = now_iso()
-        self.store.write("accounts.json", data)
-        log.debug(
-            "Linked Chrome profile %s to account %s", profile_id, account_id
+        profile_added = profile_id not in profile_ids
+        if profile_added:
+            profile_ids.append(profile_id)
+            account["chrome_profiles"] = profile_ids
+        password_flag_added = bool(chrome_password_present) and not bool(
+            account.get("chrome_password_present")
         )
-        return True
+        if password_flag_added:
+            account["chrome_password_present"] = True
+        if profile_added or password_flag_added:
+            account["updated_at"] = now_iso()
+            self.store.write("accounts.json", data)
+        if profile_added:
+            log.debug(
+                "Linked Chrome profile %s to account %s", profile_id, account_id
+            )
+        return profile_added
 
     # ------------------------------------------------------------------
     # Import and export
