@@ -339,9 +339,9 @@ The application must:
 
 ### FR-13: Import and Export
 
-The application should support importing an explicitly selected, user-provided account file using a documented schema.
+The application must support importing an explicitly selected, user-provided account file using a documented schema.
 
-The application may support a compatible password-manager CSV export through an explicit import workflow.
+The application must support importing Chrome's official password export CSV (`name,url,username,password,note`) through the explicit import workflow. The user must create that export through Chrome's own password manager, including Chrome's Windows-account confirmation. The application must not decrypt Chrome's `Login Data` database or bypass DPAPI.
 
 The user must preview the records before importing and resolve or skip duplicates.
 
@@ -725,6 +725,7 @@ Version 1.0 is considered ready when all of the following are true:
 19. Credential storage is plaintext JSON in Version 1.0, and this limitation is clearly documented.
 20. Encryption, master-password authentication, and time-limited encrypted password tokens remain deferred until explicitly requested.
 21. Startup, scans, account changes, imports, exports, backups, and errors are written to a rotated local log without passwords, CSRF tokens, notes, or bookmark contents.
+22. Chrome's official password export CSV can be previewed and imported without reading or decrypting Chrome's credential database.
 
 ## 13\. Development Plan
 
@@ -765,7 +766,7 @@ Version 1.0 is considered ready when all of the following are true:
 
 ### Phase 5 — Import, Backup, and Testing
 
-- Implement explicit import and export workflows.
+- Implement explicit import and export workflows, including Chrome's official password CSV export.
 - Add backup and restore.
 - Test malformed files, missing profiles, unreadable bookmark files, duplicate records, repeated scans, and application restarts.
 - Document setup and usage.

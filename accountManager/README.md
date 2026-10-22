@@ -26,8 +26,8 @@ The application never uploads data anywhere.
   username) are flagged on save. Nothing is merged automatically, and you can save
   anyway.
 - **Bookmark → account** — turn any indexed bookmark into a pre-filled account form.
-- **Import / export** — documented JSON import with preview and per-record selection;
-  JSON export with an explicit plaintext-password warning.
+- **Import / export** — JSON import and Chrome password CSV import with preview and
+  per-record selection; JSON export with an explicit plaintext-password warning.
 - **Backups** — create, download, restore, and upload backup archives. Restoring
   creates a safety backup of the current data first.
 - **Step-by-step local logs** — startup, scans, account changes, imports, exports,
@@ -74,7 +74,7 @@ python main.py --no-browser     # do not open a browser automatically
    **not** read saved Chrome passwords or create account records; accounts are added
    manually or imported.
 2. Use **+ Add account** to create an account manually, or **Data → Import** to bring
-   in accounts from JSON.
+   in accounts from JSON or Chrome's password CSV.
 3. Type in the search box to search accounts **and** bookmarks at once.
 4. Switch to the **Bookmarks** tab to browse them; use **→ Account** to create an
    account seeded with that bookmark's title and URL.
@@ -88,6 +88,21 @@ is running, the dashboard shows a warning instead of failing the scan.
 Version 1.0 only reads metadata and bookmark files. It does not decrypt Chrome's
 `Login Data` database or bypass Windows DPAPI protection. Account passwords only
 enter the inventory through explicit user input or an explicit import.
+
+Chrome can export its saved passwords through its own password manager, after
+confirming your Windows account. Import that CSV with **Data → Import**. This keeps
+Chrome's security boundary intact: the app never decrypts the browser database
+behind Chrome's back.
+
+### Importing saved Chrome passwords
+
+1. In Chrome, open `chrome://password-manager/settings`.
+2. Choose **Export passwords**, confirm with your Windows account, and save the CSV.
+3. In this app, open **Data → Import accounts…**, select the CSV, review the preview,
+   and import the records you want.
+
+Imported passwords are stored as plaintext in `vault.json`, like manually entered
+passwords. Delete the exported CSV after importing it if you do not need it.
 
 ### Removing bookmarks
 
@@ -163,6 +178,11 @@ A bare JSON array of the same account objects is also accepted. Each record is
 validated in the preview; invalid records cannot be selected, and likely duplicates
 are unchecked by default. Imported passwords go into `vault.json` in plaintext.
 
+Chrome's password CSV exports are also accepted. The expected columns are
+`name,url,username,password,note`; a username that looks like an email is stored as
+the account email. See **Importing saved Chrome passwords** above for the export
+steps.
+
 `chrome_profile_ids` is optional. Exports include it so profile links survive a
 round trip; `chrome_profiles` containing profile display names is also accepted.
 
@@ -178,7 +198,7 @@ copies too, not just `vault.json`.
 | Problem | What to do |
 | --- | --- |
 | No profiles found | Make sure Chrome has been launched at least once under this Windows user, then rescan. |
-| Scan found profiles/bookmarks but no accounts | Expected: scans never read saved Chrome passwords or create account records. Use **+ Add account** or import accounts. |
+| Scan found profiles/bookmarks but no accounts | Expected: scans never read saved Chrome passwords or create account records. Use **+ Add account**, import JSON, or import Chrome's password CSV. |
 | Bookmarks missing | Close Chrome and rescan. Check the scan warnings panel. |
 | Port already in use | The app automatically picks the next free port; read the URL printed in the terminal. |
 | `accounts.json is not valid JSON` | Restore a backup or fix the file. The app preserves a copy as `accounts.corrupt-<hash>.json`. |

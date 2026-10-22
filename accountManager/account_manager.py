@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import re
 import uuid
 from datetime import datetime
+from urllib.parse import urlsplit
 
 from json_store import CorruptFileError, JsonStore
 from logging_setup import get_logger
@@ -639,18 +642,72 @@ class AccountManager:
             raise ValidationError("The import file is empty.")
         if len(content) > 5 * 1024 * 1024:
             raise ValidationError("The import file is too large (limit 5 MB).")
-        try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise ValidationError(f"The import file is not valid JSON: {exc.msg}.") from exc
-        if isinstance(parsed, dict):
-            records = parsed.get("accounts")
-            if not isinstance(records, list):
-                raise ValidationError("The import file must contain an 'accounts' list.")
-            return records
-        if isinstance(parsed, list):
-            return parsed
-        raise ValidationError("The import file must be a JSON object or list.")
+
+        stripped = content.lstrip("\ufeff \t\r\n")
+        if stripped.startswith(("{", "[")):
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                raise ValidationError(
+                    f"The import file is not valid JSON: {exc.msg}."
+                ) from exc
+            if isinstance(parsed, dict):
+                records = parsed.get("accounts")
+                if not isinstance(records, list):
+                    raise ValidationError(
+                        "The import file must contain an 'accounts' list."
+                    )
+                return records
+            if isinstance(parsed, list):
+                return parsed
+            raise ValidationError("The import file must be a JSON object or list.")
+
+        return self._parse_chrome_csv(stripped)
+
+    def _parse_chrome_csv(self, content: str) -> list:
+        """Parse Chrome's official password export (CSV) into account records."""
+        reader = csv.DictReader(io.StringIO(content))
+        headers = {
+            (name or "").strip().lower(): name for name in (reader.fieldnames or [])
+        }
+        missing = {"name", "url", "username", "password"} - set(headers)
+        if missing:
+            raise ValidationError(
+                "The import file must be JSON or Chrome's password CSV "
+                "(name, url, username, password, note)."
+            )
+
+        records: list[dict] = []
+        for row in reader:
+            normalized = {
+                key: (row.get(original) or "") for key, original in headers.items()
+            }
+            name = normalized.get("name", "").strip()
+            url = normalized.get("url", "").strip()
+            username = normalized.get("username", "").strip()
+            password = normalized.get("password", "")
+            note = normalized.get("note", "")
+            if not any((name, url, username, password, note)):
+                continue
+            if not name:
+                name = urlsplit(url).hostname or "Imported account"
+            email = username if EMAIL_RE.match(username) else ""
+            records.append(
+                {
+                    "service": name,
+                    "website": url,
+                    "email": email,
+                    "username": "" if email else username,
+                    "password": password or None,
+                    "notes": note,
+                    "category": "Other",
+                    "chrome_profiles": [],
+                }
+            )
+        if not records:
+            raise ValidationError("No account records were found in the CSV file.")
+        log.info("Parsed Chrome CSV export: records=%d", len(records))
+        return records
 
     def export_accounts(self, include_passwords: bool = False) -> dict:
         profiles = self.profile_map()

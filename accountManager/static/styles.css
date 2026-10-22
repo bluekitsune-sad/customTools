@@ -1460,6 +1460,21 @@ summary:focus-visible {
   font-weight: 550;
 }
 
+.schema-help p {
+  margin: 8px 0 0;
+  line-height: 1.55;
+}
+
+.schema-help code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  background: rgba(3, 7, 12, 0.7);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
 .schema-help pre {
   background: rgba(3, 7, 12, 0.7);
   border: 1px solid var(--line-soft);
