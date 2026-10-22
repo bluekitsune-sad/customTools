@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <link rel="icon" href="data:,">
+  <title>Chrome Account Manager</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">CA</div>
+        <div>
+          <h1>Chrome Account Manager</h1>
+          <p class="subtitle"><span class="status-dot" aria-hidden="true"></span> Local only <span class="dot">·</span> v{{ app_version }}</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button type="button" id="scanBtn" class="btn btn-primary">Scan Chrome</button>
+        <button type="button" id="addAccountBtn" class="btn">+ Add account</button>
+        <div class="menu-wrap">
+          <button type="button" id="dataMenuBtn" class="btn" aria-haspopup="true" aria-expanded="false">Data <span aria-hidden="true">▾</span></button>
+          <div id="dataMenu" class="menu hidden" role="menu">
+            <button type="button" class="menu-item" role="menuitem" data-action="open-import">Import accounts…</button>
+            <button type="button" class="menu-item" role="menuitem" data-action="open-export">Export accounts…</button>
+            <button type="button" class="menu-item" role="menuitem" data-action="open-backup">Backups…</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="banner" role="note">
+      <strong>Plaintext warning:</strong> Version 1.0 stores passwords as plaintext JSON in
+      <code>data/vault.json</code>. Backups and exports can contain plaintext passwords too.
+      Keep this folder private and never commit it to source control.
+    </div>
+
+    <main>
+      <section class="stats" aria-label="Inventory summary">
+        <article class="stat-card">
+          <p class="stat-label">Accounts</p>
+          <p class="stat-value" id="statAccounts">0</p>
+          <p class="stat-hint" id="statServices">0 services</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">Chrome profiles</p>
+          <p class="stat-value" id="statProfiles">0</p>
+          <p class="stat-hint">Discovered locally</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">Bookmarks</p>
+          <p class="stat-value" id="statBookmarks">0</p>
+          <p class="stat-hint">Indexed from profiles</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">Last scan</p>
+          <p class="stat-value stat-value-sm" id="statLastScan">Never</p>
+          <p class="stat-hint" id="statScanHint">Run a scan to begin</p>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="tabs" role="tablist" aria-label="Inventory views">
+          <button type="button" class="tab active" role="tab" aria-selected="true" data-view="accounts">
+            Accounts <span class="pill" id="tabAccounts">0</span>
+          </button>
+          <button type="button" class="tab" role="tab" aria-selected="false" data-view="bookmarks">
+            Bookmarks <span class="pill" id="tabBookmarks">0</span>
+          </button>
+          <button type="button" class="tab" role="tab" aria-selected="false" data-view="profiles">
+            Profiles <span class="pill" id="tabProfiles">0</span>
+          </button>
+        </div>
+
+        <div class="toolbar">
+          <div class="search-wrap">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input id="searchInput" type="search" placeholder="Search accounts and bookmarks…" autocomplete="off" spellcheck="false" aria-label="Search accounts and bookmarks">
+            <kbd>/</kbd>
+          </div>
+          <label class="select-wrap">
+            <span class="sr-only">Filter by Chrome profile</span>
+            <select id="profileFilter">
+              <option value="">All profiles</option>
+            </select>
+          </label>
+          <label class="select-wrap">
+            <span class="sr-only">Filter by service</span>
+            <select id="serviceFilter">
+              <option value="">All services</option>
+            </select>
+          </label>
+          <label class="select-wrap">
+            <span class="sr-only">Filter by category</span>
+            <select id="categoryFilter">
+              <option value="">All categories</option>
+            </select>
+          </label>
+          <label class="select-wrap">
+            <span class="sr-only">Filter by record state</span>
+            <select id="passwordFilter">
+              <option value="">Any record state</option>
+              <option value="with">Has saved password</option>
+              <option value="without">No saved password</option>
+              <option value="email">Has email address</option>
+              <option value="no-email">No email address</option>
+            </select>
+          </label>
+          <label class="select-wrap">
+            <span class="sr-only">Sort results</span>
+            <select id="sortSelect">
+              <option value="name">Name A–Z</option>
+              <option value="updated">Recently updated</option>
+              <option value="email">Email A–Z</option>
+              <option value="profile">Profile A–Z</option>
+            </select>
+          </label>
+          <button type="button" id="resetFilters" class="btn btn-ghost">Reset</button>
+        </div>
+
+        <div id="warnings" class="warnings hidden" role="status">
+          <div class="warnings-head">
+            <strong>Scan warnings</strong>
+            <button type="button" id="dismissWarnings" class="icon-btn" aria-label="Dismiss warnings">×</button>
+          </div>
+          <ul id="warningList"></ul>
+        </div>
+
+        <div id="results">
+          <div id="accountsPanel" class="view" data-panel="accounts"></div>
+          <div id="bookmarksPanel" class="view hidden" data-panel="bookmarks"></div>
+          <div id="profilesPanel" class="view hidden" data-panel="profiles"></div>
+          <div id="searchPanel" class="view hidden" data-panel="search"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Data stays on this computer. The server listens only on 127.0.0.1.</span>
+      <span id="dataLocation" class="mono"></span>
+    </footer>
+  </div>
+
+  <!-- Add / edit account -->
+  <div id="accountModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 id="accountModalTitle">Add account</h2>
+          <p class="modal-sub">Passwords are optional and stored in plaintext in Version 1.0.</p>
+        </div>
+        <button type="button" class="icon-btn" data-close="accountModal" aria-label="Close">×</button>
+      </div>
+      <form id="accountForm" novalidate>
+        <input type="hidden" id="accountId">
+        <div id="accountError" class="form-error hidden" role="alert"></div>
+        <div class="form-grid">
+          <label class="field">
+            <span>Service name <span class="req">*</span></span>
+            <input id="fService" maxlength="160" autocomplete="off" required>
+          </label>
+          <label class="field">
+            <span>Website</span>
+            <input id="fWebsite" maxlength="2048" placeholder="https://example.com" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Email</span>
+            <input id="fEmail" type="email" maxlength="320" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Username</span>
+            <input id="fUsername" maxlength="160" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Category</span>
+            <select id="fCategory"></select>
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <span class="password-row">
+              <input id="fPassword" type="password" maxlength="1024" autocomplete="new-password" placeholder="Leave blank to keep current">
+              <button type="button" id="toggleFormPassword" class="btn btn-ghost btn-small">Show</button>
+            </span>
+          </label>
+        </div>
+        <fieldset class="profiles-field">
+          <legend>Chrome profiles</legend>
+          <div id="profileChecks" class="check-grid"></div>
+        </fieldset>
+        <label class="field">
+          <span>Notes</span>
+          <textarea id="fNotes" rows="3" maxlength="5000"></textarea>
+        </label>
+        <label id="clearPasswordRow" class="checkbox hidden">
+          <input type="checkbox" id="fClearPassword"> Delete the saved password for this account
+        </label>
+        <div id="duplicateWarning" class="dup-warning hidden" role="alert"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close="accountModal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="accountSaveBtn">Save account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Import -->
+  <div id="importModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+    <div class="modal-card modal-wide">
+      <div class="modal-head">
+        <div>
+          <h2 id="importModalTitle">Import accounts</h2>
+          <p class="modal-sub">JSON only. Nothing is uploaded; the file is parsed by the local server.</p>
+        </div>
+        <button type="button" class="icon-btn" data-close="importModal" aria-label="Close">×</button>
+      </div>
+      <div class="import-drop">
+        <label class="field">
+          <span>Choose a JSON file</span>
+          <input type="file" id="importFile" accept=".json,application/json">
+        </label>
+        <details class="schema-help">
+          <summary>Accepted format</summary>
+          <pre>{
+  "version": 1,
+  "accounts": [
+    {
+      "service": "Example",
+      "website": "https://example.com",
+      "email": "user@example.com",
+      "username": "user",
+      "password": "optional",
+      "category": "Personal",
+      "notes": ""
+    }
+  ]
+}</pre>
+        </details>
+      </div>
+      <div id="importError" class="form-error hidden" role="alert"></div>
+      <div id="importPreview" class="import-preview hidden">
+        <div class="preview-head">
+          <strong id="importSummary">Preview</strong>
+          <div class="preview-actions">
+            <button type="button" class="btn btn-ghost btn-small" id="selectAllImport">Select all valid</button>
+            <button type="button" class="btn btn-ghost btn-small" id="selectNoneImport">Select none</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table compact">
+            <thead>
+              <tr>
+                <th class="check-col"><span class="sr-only">Import</span></th>
+                <th>Service</th>
+                <th>Email / username</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="importRows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close="importModal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="importCommitBtn" disabled>Import selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export -->
+  <div id="exportModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 id="exportModalTitle">Export accounts</h2>
+          <p class="modal-sub">Exports are created locally and downloaded by your browser.</p>
+        </div>
+        <button type="button" class="icon-btn" data-close="exportModal" aria-label="Close">×</button>
+      </div>
+      <label class="checkbox">
+        <input type="checkbox" id="exportPasswords"> Include plaintext passwords in the export
+      </label>
+      <div class="warning-box">
+        An export with passwords is a plaintext credential file. Anyone who opens it can read
+        every password. Store it only where you would store your real passwords.
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close="exportModal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="exportBtn">Download JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backups -->
+  <div id="backupModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="backupModalTitle">
+    <div class="modal-card modal-wide">
+      <div class="modal-head">
+        <div>
+          <h2 id="backupModalTitle">Backups</h2>
+          <p class="modal-sub">Backups include accounts, profiles, bookmarks, and plaintext credentials.</p>
+        </div>
+        <button type="button" class="icon-btn" data-close="backupModal" aria-label="Close">×</button>
+      </div>
+      <div class="backup-actions">
+        <button type="button" class="btn btn-primary" id="createBackupBtn">Create backup now</button>
+        <label class="btn btn-ghost file-btn">
+          Restore from file…
+          <input type="file" id="restoreFile" accept=".zip,application/zip" class="sr-only">
+        </label>
+      </div>
+      <div id="backupError" class="form-error hidden" role="alert"></div>
+      <div id="backupList" class="backup-list"></div>
+      <p class="fine-print">
+        Restoring replaces the current data after creating a safety backup of it. Backups are
+        stored in <code>backups/</code> and contain plaintext passwords.
+      </p>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>

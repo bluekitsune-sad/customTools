@@ -1,0 +1,10 @@
+# Local, sensitive application data. Never commit these.
+data/
+backups/
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
