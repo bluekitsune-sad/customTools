@@ -1316,6 +1316,12 @@ summary:focus-visible {
   color: #5c6f8b;
 }
 
+.field-note {
+  color: var(--muted-2);
+  font-size: 11.2px;
+  line-height: 1.45;
+}
+
 .password-row {
   display: flex;
   gap: 6px;

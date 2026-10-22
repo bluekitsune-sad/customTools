@@ -438,8 +438,17 @@ def create_app(manager: AccountManager, csrf_token: str | None = None) -> Flask:
         indexes = body.get("indexes")
         if not isinstance(indexes, list):
             raise ValidationError("Select the records you want to import.")
-        log.info("Import commit request received: selected=%d", len(indexes))
-        result = manager.commit_import(content, indexes)
+        profile_id = body.get("chrome_profile_id")
+        if profile_id is not None and not isinstance(profile_id, str):
+            raise ValidationError("Chrome profile must be an ID.", field="chrome_profile_id")
+        log.info(
+            "Import commit request received: selected=%d profile=%s",
+            len(indexes),
+            profile_id or "auto/none",
+        )
+        result = manager.commit_import(
+            content, indexes, profile_id=profile_id or None
+        )
         return jsonify(result)
 
     @app.post("/api/export")

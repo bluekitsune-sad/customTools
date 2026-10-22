@@ -70,6 +70,7 @@
     profileChecks: $('profileChecks'),
     importModal: $('importModal'),
     importFile: $('importFile'),
+    importProfile: $('importProfile'),
     importError: $('importError'),
     importPreview: $('importPreview'),
     importSummary: $('importSummary'),
@@ -254,6 +255,7 @@
   function renderAll() {
     renderStats();
     renderFilters();
+    renderImportProfiles();
     renderTabs();
     renderWarnings();
     renderView();
@@ -281,6 +283,24 @@
       tab.classList.toggle('active', isActive);
       tab.setAttribute('aria-selected', String(isActive));
     });
+  }
+
+  function renderImportProfiles() {
+    if (!els.importProfile) return;
+    const current = els.importProfile.value;
+    els.importProfile.innerHTML =
+      '<option value="">No profile</option>' +
+      state.profiles
+        .slice()
+        .sort((a, b) => profileLabel(a).localeCompare(profileLabel(b)))
+        .map(
+          (profile) =>
+            `<option value="${escapeHtml(profile.id)}">${escapeHtml(profileLabel(profile))}</option>`
+        )
+        .join('');
+    if (current && state.profiles.some((profile) => profile.id === current)) {
+      els.importProfile.value = current;
+    }
   }
 
   function renderFilters() {
@@ -1170,7 +1190,11 @@
     try {
       const result = await api('/api/import/commit', {
         method: 'POST',
-        body: { content: importState.content, indexes },
+        body: {
+          content: importState.content,
+          indexes,
+          chrome_profile_id: els.importProfile.value || null,
+        },
       });
       closeModal('importModal');
       await loadState();
@@ -1368,6 +1392,8 @@
         hide(els.importError);
         els.importPreview.classList.add('hidden');
         els.importFile.value = '';
+        renderImportProfiles();
+        els.importProfile.value = '';
         openModal('importModal');
       } else if (button.dataset.action === 'open-export') {
         els.exportPasswords.checked = false;

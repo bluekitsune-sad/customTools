@@ -343,6 +343,8 @@ The application must support importing an explicitly selected, user-provided acc
 
 The application must support importing Chrome's official password export CSV (`name,url,username,password,note`) through the explicit import workflow. The user must create that export through Chrome's own password manager, including Chrome's Windows-account confirmation. The application must not decrypt Chrome's `Login Data` database or bypass DPAPI.
 
+The import workflow must let the user tag imported accounts with a Chrome profile, because Chrome's CSV does not include a profile identifier. A Gmail-style username may be auto-linked when it matches exactly one profile's Google email.
+
 The user must preview the records before importing and resolve or skip duplicates.
 
 Exports containing passwords must display a clear warning that the exported file will contain plaintext credentials.
@@ -726,6 +728,7 @@ Version 1.0 is considered ready when all of the following are true:
 20. Encryption, master-password authentication, and time-limited encrypted password tokens remain deferred until explicitly requested.
 21. Startup, scans, account changes, imports, exports, backups, and errors are written to a rotated local log without passwords, CSRF tokens, notes, or bookmark contents.
 22. Chrome's official password export CSV can be previewed and imported without reading or decrypting Chrome's credential database.
+23. Imported accounts can be tagged with the source Chrome profile, and Gmail usernames auto-link when exactly one profile matches.
 
 ## 13\. Development Plan
 

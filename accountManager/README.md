@@ -89,7 +89,9 @@ Version 1.0 only reads metadata and bookmark files. It does not decrypt Chrome's
 `Login Data` database or bypass Windows DPAPI protection. Account passwords only
 enter the inventory through explicit user input or an explicit import.
 
-Chrome can export its saved passwords through its own password manager, after
+Current Chrome versions store many password values as `v20` blobs protected by
+**App-Bound Encryption**, in addition to Windows DPAPI. This app does not bypass
+App-Bound Encryption. Chrome's own password manager can export the logins after
 confirming your Windows account. Import that CSV with **Data → Import**. This keeps
 Chrome's security boundary intact: the app never decrypts the browser database
 behind Chrome's back.
@@ -100,9 +102,15 @@ behind Chrome's back.
 2. Choose **Export passwords**, confirm with your Windows account, and save the CSV.
 3. In this app, open **Data → Import accounts…**, select the CSV, review the preview,
    and import the records you want.
+4. If the CSV came from one specific Chrome profile, choose that profile under
+   **Tag imported accounts with a Chrome profile** before importing. This is how
+   imported accounts keep their source profile.
 
-Imported passwords are stored as plaintext in `vault.json`, like manually entered
-passwords. Delete the exported CSV after importing it if you do not need it.
+Chrome's CSV does not contain a profile ID. Gmail logins are also auto-linked when
+the username matches a profile's Google email and exactly one profile has that email.
+For other services, tag the import manually. Imported passwords are stored as
+plaintext in `vault.json`, like manually entered passwords. Delete the exported CSV
+after importing it if you do not need it.
 
 ### Removing bookmarks
 
@@ -180,8 +188,9 @@ are unchecked by default. Imported passwords go into `vault.json` in plaintext.
 
 Chrome's password CSV exports are also accepted. The expected columns are
 `name,url,username,password,note`; a username that looks like an email is stored as
-the account email. See **Importing saved Chrome passwords** above for the export
-steps.
+the account email. Use the import dialog's profile selector to tag accounts with the
+Chrome profile they came from. See **Importing saved Chrome passwords** above for the
+export steps.
 
 `chrome_profile_ids` is optional. Exports include it so profile links survive a
 round trip; `chrome_profiles` containing profile display names is also accepted.

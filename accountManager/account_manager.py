@@ -609,11 +609,27 @@ class AccountManager:
         )
         return {"records": preview, "total": len(preview)}
 
-    def commit_import(self, content: str, indexes: list[int]) -> dict:
+    def commit_import(
+        self, content: str, indexes: list[int], profile_id: str | None = None
+    ) -> dict:
         records = self._parse_import_content(content)
-        log.info("Import commit started: selected=%d", len(indexes))
+        profiles = self.list_profiles()
+        known_profile_ids = {
+            profile.get("id") for profile in profiles if profile.get("id")
+        }
+        if profile_id and profile_id not in known_profile_ids:
+            raise ValidationError(
+                "The selected Chrome profile no longer exists.",
+                field="chrome_profile_id",
+            )
+        log.info(
+            "Import commit started: selected=%d profile=%s",
+            len(indexes),
+            profile_id or "auto/none",
+        )
         imported = 0
         skipped = 0
+        auto_tagged = 0
         errors = []
         for index in indexes:
             if not isinstance(index, int) or index < 0 or index >= len(records):
@@ -623,6 +639,26 @@ class AccountManager:
                 skipped += 1
                 errors.append(f"Record {index + 1} is not an object.")
                 continue
+
+            raw = dict(raw)
+            target_profile = profile_id
+            if not target_profile:
+                email = raw.get("email")
+                if not isinstance(email, str) or not email:
+                    username = raw.get("username")
+                    if isinstance(username, str) and EMAIL_RE.match(username.strip()):
+                        email = username.strip()
+                if isinstance(email, str) and email:
+                    target_profile = self._profile_id_for_email(email)
+                    if target_profile:
+                        auto_tagged += 1
+            if target_profile:
+                existing = raw.get("chrome_profiles")
+                profile_ids = list(existing) if isinstance(existing, list) else []
+                if target_profile not in profile_ids:
+                    profile_ids.append(target_profile)
+                raw["chrome_profiles"] = profile_ids
+
             try:
                 self.create_account(raw, allow_duplicates=True)
                 imported += 1
@@ -630,12 +666,23 @@ class AccountManager:
                 skipped += 1
                 errors.append(f"Record {index + 1}: {exc.message}")
         log.info(
-            "Import commit finished: imported=%d skipped=%d errors=%d",
+            "Import commit finished: imported=%d skipped=%d errors=%d auto_tagged=%d",
             imported,
             skipped,
             len(errors),
+            auto_tagged,
         )
         return {"imported": imported, "skipped": skipped, "errors": errors}
+
+    def _profile_id_for_email(self, email: str) -> str | None:
+        target = email.strip().lower()
+        matches = [
+            profile
+            for profile in self.list_profiles()
+            if isinstance(profile.get("google_email"), str)
+            and profile["google_email"].strip().lower() == target
+        ]
+        return matches[0].get("id") if len(matches) == 1 else None
 
     def _parse_import_content(self, content: str) -> list:
         if not isinstance(content, str) or not content.strip():

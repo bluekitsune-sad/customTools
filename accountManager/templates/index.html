@@ -221,6 +221,13 @@
           <span>Choose a JSON or Chrome CSV file</span>
           <input type="file" id="importFile" accept=".json,.csv,application/json,text/csv">
         </label>
+        <label class="field">
+          <span>Tag imported accounts with a Chrome profile</span>
+          <select id="importProfile">
+            <option value="">No profile</option>
+          </select>
+          <small class="field-note">Chrome's CSV does not include the source profile. Export one Chrome profile at a time, then tag that import.</small>
+        </label>
         <details class="schema-help">
           <summary>Accepted formats</summary>
           <p><strong>Chrome password CSV:</strong> in Chrome open <code>chrome://password-manager/settings</code>, choose <strong>Export passwords</strong>, confirm with your Windows account, then select the downloaded <code>.csv</code> file here.</p>
