@@ -23,11 +23,14 @@ The application never uploads data anywhere.
   after 30 seconds. Saved passwords are fetched only when you explicitly reveal or
   copy them.
 - **Duplicate warnings** — likely duplicates (same service, website, email, or
-  username) are flagged on save. Nothing is merged automatically, and you can save
-  anyway.
+  username) are flagged on save. Manual saves can proceed anyway; selected import
+  duplicates update the matching account instead of creating another copy.
 - **Bookmark → account** — turn any indexed bookmark into a pre-filled account form.
 - **Import / export** — JSON import and Chrome password CSV import with preview and
   per-record selection; JSON export with an explicit plaintext-password warning.
+- **Chrome login metadata import** — pull saved emails, usernames, and website URLs
+  from Chrome's `Login Data` and link each account to its Chrome profile. Passwords
+  stay encrypted in Chrome.
 - **Backups** — create, download, restore, and upload backup archives. Restoring
   creates a safety backup of the current data first.
 - **Step-by-step local logs** — startup, scans, account changes, imports, exports,
@@ -96,6 +99,23 @@ confirming your Windows account. Import that CSV with **Data → Import**. This 
 Chrome's security boundary intact: the app never decrypts the browser database
 behind Chrome's back.
 
+A separate action, **Data → Import Chrome logins…**, reads only metadata from
+`Login Data`: origin URL, username/email, and display name. It never retrieves, logs,
+or decrypts the encrypted `password_value` content. It creates account records and
+links them to their Chrome profiles, but imported accounts have no password until you
+import Chrome's CSV.
+
+### Importing Chrome login emails and usernames
+
+1. Run **Scan Chrome** first so the app knows the profile directories.
+2. Open **Data → Import Chrome logins…** and confirm.
+3. The app reads each profile's `Login Data` read-only, creates missing accounts, and
+   links existing accounts to the matching Chrome profiles.
+4. Close Chrome and retry if the app reports that a profile's login database is locked.
+
+This populates the Accounts view with the emails and usernames and shows their source
+profile. The encrypted password values are skipped.
+
 ### Importing saved Chrome passwords
 
 1. In Chrome, open `chrome://password-manager/settings`.
@@ -112,6 +132,11 @@ For other services, tag the import manually. Imported passwords are stored as
 plaintext in `vault.json`, like manually entered passwords. Delete the exported CSV
 after importing it if you do not need it.
 
+If you already used **Import Chrome logins**, the CSV preview marks matching records as
+duplicates and leaves them unchecked. Select those rows to attach their passwords to
+the existing accounts; the import updates the matching account instead of creating a
+second copy.
+
 ### Removing bookmarks
 
 Removing a bookmark from the dashboard only deletes the local index entry. It does
@@ -123,6 +148,7 @@ not touch Chrome, and the next scan will index the bookmark again.
 accountManager/
 ├── main.py               # startup, port selection, browser launch
 ├── scanner.py            # read-only Chrome profile + bookmark discovery
+├── chrome_logins.py      # read-only Chrome Login Data metadata (no passwords)
 ├── account_manager.py    # accounts, credentials, bookmarks, import/export
 ├── json_store.py         # atomic JSON reads/writes, backups, corruption handling
 ├── server.py             # Flask API, loopback/CSRF/security headers
@@ -184,7 +210,9 @@ bookmark URLs. `logs/` is excluded from Git.
 
 A bare JSON array of the same account objects is also accepted. Each record is
 validated in the preview; invalid records cannot be selected, and likely duplicates
-are unchecked by default. Imported passwords go into `vault.json` in plaintext.
+are unchecked by default. If a selected duplicate matches an existing account, it
+updates that account and keeps its profile links. Imported passwords go into
+`vault.json` in plaintext.
 
 Chrome's password CSV exports are also accepted. The expected columns are
 `name,url,username,password,note`; a username that looks like an email is stored as
@@ -207,7 +235,9 @@ copies too, not just `vault.json`.
 | Problem | What to do |
 | --- | --- |
 | No profiles found | Make sure Chrome has been launched at least once under this Windows user, then rescan. |
-| Scan found profiles/bookmarks but no accounts | Expected: scans never read saved Chrome passwords or create account records. Use **+ Add account**, import JSON, or import Chrome's password CSV. |
+| Scan found profiles/bookmarks but no accounts | Expected: scanning only profiles and bookmarks. Use **Data → Import Chrome logins** for emails/usernames, or import Chrome's password CSV for passwords. |
+| Chrome login import says the database is locked | Close Chrome, then run **Data → Import Chrome logins…** again. |
+| Accounts have no password after Chrome login import | Expected: password values are encrypted (`v20`) and are not decrypted. Import Chrome's password CSV for passwords. |
 | Bookmarks missing | Close Chrome and rescan. Check the scan warnings panel. |
 | Port already in use | The app automatically picks the next free port; read the URL printed in the terminal. |
 | `accounts.json is not valid JSON` | Restore a backup or fix the file. The app preserves a copy as `accounts.corrupt-<hash>.json`. |

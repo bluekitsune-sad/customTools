@@ -345,7 +345,7 @@ The application must support importing Chrome's official password export CSV (`n
 
 The import workflow must let the user tag imported accounts with a Chrome profile, because Chrome's CSV does not include a profile identifier. A Gmail-style username may be auto-linked when it matches exactly one profile's Google email.
 
-The user must preview the records before importing and resolve or skip duplicates.
+The user must preview the records before importing and resolve or skip duplicates. When a selected import record matches an existing account, the import must update that account and preserve its profile links instead of creating a second copy.
 
 Exports containing passwords must display a clear warning that the exported file will contain plaintext credentials.
 
@@ -431,6 +431,23 @@ Requirements:
 - Never log passwords, CSRF tokens, vault contents, notes, bookmark titles, bookmark URLs, or full request bodies.
 - Keep logs local and exclude the log directory from Git.
 - Logging failures must not prevent the application from starting or from completing data operations.
+
+### FR-19: Chrome Login Metadata Import
+
+The application must provide an explicit action to import account metadata from Chrome's `Login Data` database without decrypting passwords.
+
+Requirements:
+
+- Keep this separate from the profile/bookmark scan because it creates account records.
+- Open each profile's `Login Data` read-only and select only `origin_url`, `signon_realm`, `username_value`, `display_name`, and non-secret flags.
+- Never retrieve, log, export, or decrypt `password_value` content.
+- Skip rows marked as never-save/blacklisted.
+- Create missing accounts with the email or username and website, and link them to the source Chrome profile.
+- Merge with an existing account when the normalized service or website host matches and the email/username matches; preserve any password already stored.
+- Do not create a credential for metadata-only imports.
+- Report locked or unreadable databases as warnings and continue with other profiles.
+- Log only counts and profile identifiers, never imported emails, usernames, or URLs.
+- Tell the user that encrypted passwords remain in Chrome and that passwords require Chrome's official CSV export.
 
 ## 8\. User Interface Requirements
 
@@ -608,6 +625,7 @@ The following protections are still required:
 - Provide backup and restore functionality.
 - Treat `bookmarks.json` as sensitive: bookmark titles, folders, and URLs can reveal personal or work interests and accounts.
 - Keep operational logs free of passwords, CSRF tokens, notes, bookmark titles, and bookmark URLs.
+- When reading Chrome `Login Data` metadata, open the database read-only and never retrieve `password_value` content.
 - Render only `http` and `https` bookmarks as clickable links. Other schemes must remain inert text.
 - Make clear that removing a bookmark from the dashboard affects only the local index, never Chrome.
 
@@ -729,6 +747,7 @@ Version 1.0 is considered ready when all of the following are true:
 21. Startup, scans, account changes, imports, exports, backups, and errors are written to a rotated local log without passwords, CSRF tokens, notes, or bookmark contents.
 22. Chrome's official password export CSV can be previewed and imported without reading or decrypting Chrome's credential database.
 23. Imported accounts can be tagged with the source Chrome profile, and Gmail usernames auto-link when exactly one profile matches.
+24. Chrome login metadata import creates or links accounts from emails/usernames and URLs without reading password content or decrypting `password_value`.
 
 ## 13\. Development Plan
 
@@ -770,6 +789,7 @@ Version 1.0 is considered ready when all of the following are true:
 ### Phase 5 — Import, Backup, and Testing
 
 - Implement explicit import and export workflows, including Chrome's official password CSV export.
+- Implement read-only Chrome login metadata import for emails, usernames, URLs, and profile links.
 - Add backup and restore.
 - Test malformed files, missing profiles, unreadable bookmark files, duplicate records, repeated scans, and application restarts.
 - Document setup and usage.

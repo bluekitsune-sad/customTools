@@ -481,7 +481,7 @@
     if (allEmpty) {
       els.accountsPanel.innerHTML = emptyState(
         'No accounts yet',
-        'Add an account manually or import one. Scanning Chrome only indexes profiles and bookmarks; it never reads saved Chrome passwords or creates accounts.',
+        "Add one manually, import Chrome's password CSV, or use Data → Import Chrome logins to pull emails and usernames from Chrome. Passwords stay encrypted in Chrome.",
         `<button type="button" class="btn btn-primary" data-action="open-add">+ Add account</button>
          <button type="button" class="btn" data-action="run-scan">Scan Chrome</button>`
       );
@@ -1090,6 +1090,51 @@
   }
 
   // ------------------------------------------------------------------
+  // Chrome Login Data metadata
+  // ------------------------------------------------------------------
+
+  async function importChromeLogins() {
+    const confirmed = window.confirm(
+      `Read account emails, usernames, and website URLs from Chrome's Login Data for this Windows user?
+
+This does NOT decrypt or import passwords. Chrome stores them with App-Bound Encryption (v20), so passwords stay in Chrome. Use Data → Import accounts… with Chrome's password CSV to import passwords.
+
+Accounts will be created and linked to their Chrome profiles.`
+    );
+    if (!confirmed) return;
+    try {
+      const result = await api('/api/chrome/logins/import', { method: 'POST' });
+      await loadState();
+      const parts = [];
+      if (result.accounts_created) {
+        parts.push(`${plural(result.accounts_created, 'account')} created`);
+      }
+      if (result.accounts_linked) {
+        parts.push(`${plural(result.accounts_linked, 'profile link')} added`);
+      }
+      if (result.skipped) parts.push(`${result.skipped} skipped`);
+      const summary = parts.length
+        ? parts.join(' · ')
+        : result.logins_found
+          ? 'already up to date'
+          : 'no saved logins found';
+      const passwordNote = result.encrypted_passwords_skipped
+        ? ` ${plural(result.encrypted_passwords_skipped, 'encrypted password')} stayed in Chrome.`
+        : '';
+      toast(
+        `Chrome logins: ${summary}.${passwordNote}`,
+        result.warnings && result.warnings.length ? 'warn' : 'success',
+        9000
+      );
+      if (result.warnings && result.warnings.length) {
+        toast(result.warnings.slice(0, 3).join(' '), 'warn', 9000);
+      }
+    } catch (error) {
+      toast(error.message, 'error', 8000);
+    }
+  }
+
+  // ------------------------------------------------------------------
   // Import
   // ------------------------------------------------------------------
 
@@ -1199,8 +1244,8 @@
       closeModal('importModal');
       await loadState();
       const message = `Imported ${plural(result.imported, 'account')}${
-        result.skipped ? ` · skipped ${result.skipped}` : ''
-      }.`;
+        result.updated ? ` · updated ${plural(result.updated, 'account')}` : ''
+      }${result.skipped ? ` · skipped ${result.skipped}` : ''}.`;
       toast(message, result.errors && result.errors.length ? 'warn' : 'success', 7000);
       if (result.errors && result.errors.length) {
         toast(result.errors.slice(0, 3).join(' '), 'error', 9000);
@@ -1395,6 +1440,8 @@
         renderImportProfiles();
         els.importProfile.value = '';
         openModal('importModal');
+      } else if (button.dataset.action === 'import-chrome-logins') {
+        importChromeLogins();
       } else if (button.dataset.action === 'open-export') {
         els.exportPasswords.checked = false;
         openModal('exportModal');

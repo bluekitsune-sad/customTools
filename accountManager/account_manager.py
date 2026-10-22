@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime
 from urllib.parse import urlsplit
 
+from chrome_logins import read_chrome_logins
 from json_store import CorruptFileError, JsonStore
 from logging_setup import get_logger
 from scanner import ChromeScanner
@@ -27,6 +28,31 @@ MAX_TEXT = {
 }
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PROFILE_ID_RE = re.compile(r"^prof_[a-f0-9]{12}$")
+SERVICE_ALIASES = {
+    "accounts.google.com": "Google",
+    "amazon.com": "Amazon",
+    "com.clickworker.clickworkerapp": "Clickworker",
+    "com.discord": "Discord",
+    "com.instagram.android": "Instagram",
+    "com.pinterest": "Pinterest",
+    "com.twitter.android": "X (Twitter)",
+    "discord.com": "Discord",
+    "instagram.com": "Instagram",
+    "io.quotex.x": "Quotex",
+    "netflix.com": "Netflix",
+    "one.cryptoguru.cryptotradingacademy": "Crypto Guru",
+    "openrouter.ai": "OpenRouter",
+    "pinterest.com": "Pinterest",
+    "pk.gov.nadra.pakid": "NADRA Pak-ID",
+    "sp.hamdard.edu.pk": "Hamdard University",
+    "twitch.tv": "Twitch",
+    "twitter": "X (Twitter)",
+    "twitter.com": "X (Twitter)",
+    "workplace.clickworker.com": "Clickworker",
+    "x": "X (Twitter)",
+    "x.com": "X (Twitter)",
+    "xyz.blueskyweb.app": "Bluesky",
+}
 
 
 class ValidationError(Exception):
@@ -64,6 +90,34 @@ def normalize_website_input(value: str) -> str:
     if value.startswith(("mailto:", "tel:")):
         return value
     return "https://" + value
+
+
+def url_host(value: str) -> str:
+    value = (value or "").strip()
+    if not value:
+        return ""
+    candidate = (
+        value
+        if re.match(r"^[a-z][a-z0-9+.-]*://", value, re.IGNORECASE)
+        else "https://" + value
+    )
+    try:
+        host = urlsplit(candidate).hostname or ""
+    except ValueError:
+        return ""
+    host = host.lower()
+    return host[4:] if host.startswith("www.") else host
+
+
+def friendly_service_name(service: str, website: str = "") -> str:
+    value = (service or "").strip()
+    key = normalize_service(value)
+    if key in SERVICE_ALIASES:
+        return SERVICE_ALIASES[key]
+    if "." in key:
+        host = url_host(website) or key
+        return SERVICE_ALIASES.get(host, value)
+    return value
 
 
 class AccountManager:
@@ -567,6 +621,178 @@ class AccountManager:
         return result
 
     # ------------------------------------------------------------------
+    # Chrome Login Data metadata
+    # ------------------------------------------------------------------
+
+    def import_chrome_logins(self) -> dict:
+        """Import usernames, emails, and URLs from Chrome Login Data.
+
+        Passwords are deliberately not read or decrypted. New accounts have no
+        credential; existing accounts keep whatever password they already have.
+        """
+        profiles = self.list_profiles()
+        if not profiles:
+            raise ValidationError("Scan Chrome first so profiles are known.")
+
+        warnings: list[str] = []
+        profiles_with_logins = 0
+        logins_found = 0
+        created = 0
+        matched = 0
+        linked = 0
+        skipped = 0
+        encrypted = 0
+        log.info("Chrome login metadata import started: profiles=%d", len(profiles))
+
+        for profile in profiles:
+            profile_path = profile.get("path")
+            profile_id = profile.get("id")
+            if not isinstance(profile_path, str) or not profile_path:
+                continue
+            if not isinstance(profile_id, str) or not profile_id:
+                continue
+            profile_label = (
+                profile.get("display_name")
+                or profile.get("dir")
+                or profile_id
+            )
+            rows, profile_warnings = read_chrome_logins(
+                profile_path, profile_label
+            )
+            warnings.extend(profile_warnings)
+            if not rows:
+                continue
+            profiles_with_logins += 1
+            logins_found += len(rows)
+            encrypted += sum(1 for row in rows if row["has_password_blob"])
+
+            for row in rows:
+                username = (row.get("username") or "").strip()
+                if not username:
+                    skipped += 1
+                    continue
+                website = row.get("origin_url") or row.get("signon_realm") or ""
+                service = (row.get("display_name") or "").strip()
+                if not service:
+                    service = url_host(website) or "Imported login"
+                service = friendly_service_name(service, website)
+                email = username if EMAIL_RE.match(username) else ""
+                username_value = "" if email else username
+
+                existing = self._find_login_account(
+                    service, website, email, username_value
+                )
+                if existing:
+                    matched += 1
+                    if self._link_profile_to_account(
+                        existing.get("id"), profile_id
+                    ):
+                        linked += 1
+                    continue
+
+                payload = {
+                    "service": service,
+                    "website": website,
+                    "email": email,
+                    "username": username_value,
+                    "chrome_profiles": [profile_id],
+                    "category": "Other",
+                    "notes": "",
+                }
+                try:
+                    self.create_account(payload, allow_duplicates=True)
+                    created += 1
+                except ValidationError as exc:
+                    skipped += 1
+                    warnings.append(
+                        f"{profile_label}: skipped one Chrome login ({exc.message})"
+                    )
+
+        note = (
+            "Only usernames, emails, and URLs were imported. Passwords remain "
+            "encrypted in Chrome; use Chrome's password export CSV to import passwords."
+        )
+        log.info(
+            "Chrome login metadata import finished: profiles_with_logins=%d "
+            "rows=%d created=%d matched=%d linked=%d skipped=%d encrypted=%d "
+            "warnings=%d",
+            profiles_with_logins,
+            logins_found,
+            created,
+            matched,
+            linked,
+            skipped,
+            encrypted,
+            len(warnings),
+        )
+        return {
+            "profiles_with_logins": profiles_with_logins,
+            "logins_found": logins_found,
+            "accounts_created": created,
+            "accounts_matched": matched,
+            "accounts_linked": linked,
+            "skipped": skipped,
+            "encrypted_passwords_skipped": encrypted,
+            "warnings": warnings,
+            "password_note": note,
+        }
+
+    def _find_login_account(
+        self, service: str, website: str, email: str, username: str
+    ) -> dict | None:
+        target_service = normalize_service(friendly_service_name(service, website))
+        target_host = url_host(website)
+        target_email = (email or "").strip().lower()
+        target_username = (username or "").strip().lower()
+        for account in self.list_accounts():
+            account_service = normalize_service(
+                friendly_service_name(
+                    account.get("service", ""), account.get("website", "")
+                )
+            )
+            account_host = url_host(account.get("website", ""))
+            account_email = (account.get("email") or "").strip().lower()
+            account_username = (account.get("username") or "").strip().lower()
+            identity_matches = (
+                target_email and target_email == account_email
+            ) or (
+                target_username and target_username == account_username
+            )
+            if not identity_matches:
+                continue
+            if target_service == account_service or (
+                target_host and target_host == account_host
+            ):
+                return account
+        return None
+
+    def _link_profile_to_account(
+        self, account_id: str | None, profile_id: str
+    ) -> bool:
+        if not account_id:
+            return False
+        data = self._accounts_data()
+        account = next(
+            (item for item in data["accounts"] if item.get("id") == account_id),
+            None,
+        )
+        if account is None:
+            return False
+        profile_ids = account.get("chrome_profiles")
+        if not isinstance(profile_ids, list):
+            profile_ids = []
+        if profile_id in profile_ids:
+            return False
+        profile_ids.append(profile_id)
+        account["chrome_profiles"] = profile_ids
+        account["updated_at"] = now_iso()
+        self.store.write("accounts.json", data)
+        log.debug(
+            "Linked Chrome profile %s to account %s", profile_id, account_id
+        )
+        return True
+
+    # ------------------------------------------------------------------
     # Import and export
     # ------------------------------------------------------------------
 
@@ -628,6 +854,7 @@ class AccountManager:
             profile_id or "auto/none",
         )
         imported = 0
+        updated = 0
         skipped = 0
         auto_tagged = 0
         errors = []
@@ -660,19 +887,52 @@ class AccountManager:
                 raw["chrome_profiles"] = profile_ids
 
             try:
-                self.create_account(raw, allow_duplicates=True)
-                imported += 1
+                existing = self._find_login_account(
+                    str(raw.get("service") or ""),
+                    str(raw.get("website") or ""),
+                    str(raw.get("email") or ""),
+                    str(raw.get("username") or ""),
+                )
+                if existing:
+                    payload = dict(raw)
+                    for field in ("website", "email", "username", "notes"):
+                        if not payload.get(field):
+                            payload[field] = existing.get(field, "")
+                    if not payload.get("category") or (
+                        payload.get("category") == "Other"
+                        and existing.get("category")
+                    ):
+                        payload["category"] = existing.get("category", "Other")
+                    profile_ids = set(existing.get("chrome_profiles") or [])
+                    raw_profiles = payload.get("chrome_profiles")
+                    if isinstance(raw_profiles, list):
+                        profile_ids.update(raw_profiles)
+                    payload["chrome_profiles"] = list(profile_ids)
+                    self.update_account(
+                        existing["id"], payload, allow_duplicates=True
+                    )
+                    updated += 1
+                else:
+                    self.create_account(raw, allow_duplicates=True)
+                    imported += 1
             except ValidationError as exc:
                 skipped += 1
                 errors.append(f"Record {index + 1}: {exc.message}")
         log.info(
-            "Import commit finished: imported=%d skipped=%d errors=%d auto_tagged=%d",
+            "Import commit finished: imported=%d updated=%d skipped=%d "
+            "errors=%d auto_tagged=%d",
             imported,
+            updated,
             skipped,
             len(errors),
             auto_tagged,
         )
-        return {"imported": imported, "skipped": skipped, "errors": errors}
+        return {
+            "imported": imported,
+            "updated": updated,
+            "skipped": skipped,
+            "errors": errors,
+        }
 
     def _profile_id_for_email(self, email: str) -> str | None:
         target = email.strip().lower()

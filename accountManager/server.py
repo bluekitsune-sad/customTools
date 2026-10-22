@@ -411,6 +411,21 @@ def create_app(manager: AccountManager, csrf_token: str | None = None) -> Flask:
             ]
         return jsonify({"bookmarks": bookmarks})
 
+    @app.post("/api/chrome/logins/import")
+    def api_import_chrome_logins():
+        log.info("Chrome login metadata import requested")
+        result = manager.import_chrome_logins()
+        log.info(
+            "Chrome login metadata import response: created=%d linked=%d "
+            "matched=%d skipped=%d warnings=%d",
+            result["accounts_created"],
+            result["accounts_linked"],
+            result["accounts_matched"],
+            result["skipped"],
+            len(result["warnings"]),
+        )
+        return jsonify(result)
+
     @app.delete("/api/bookmarks/<bookmark_id>")
     def api_delete_bookmark(bookmark_id: str):
         log.info("Remove bookmark from local index requested: id=%s", bookmark_id)
