@@ -22,6 +22,7 @@ class _Entry:
     hwnd: int
     original_style: int
     original_alpha: int | None
+    original_topmost: bool
     opacity: int | None = None
     click_through: bool = False
 
@@ -85,6 +86,7 @@ class WindowsWindowEffects:
             hwnd=hwnd,
             original_style=original_style,
             original_alpha=api.layered_alpha(hwnd),
+            original_topmost=bool(original_style & api.WS_EX_TOPMOST),
         )
         self._entries[hwnd] = entry
         return entry
@@ -113,6 +115,14 @@ class WindowsWindowEffects:
             api.set_alpha(hwnd, max(1, min(255, alpha)))
         elif entry.original_alpha is not None:
             api.set_alpha(hwnd, entry.original_alpha)
+
+        # Click-through is an overlay mode: keep the target visible above the
+        # window receiving the clicks, otherwise the first click forwards focus
+        # to (and raises) the window behind, hiding the target. Restore the
+        # window's own topmost state as soon as the mode ends.
+        desired_topmost = entry.original_topmost or entry.click_through
+        if api.is_topmost(hwnd) != desired_topmost:
+            api.set_topmost(hwnd, desired_topmost)
 
         if not wanted:
             self._entries.pop(hwnd, None)

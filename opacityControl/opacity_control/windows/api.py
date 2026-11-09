@@ -36,6 +36,7 @@ GWL_EXSTYLE = -20
 WS_EX_TOOLWINDOW = 0x00000080
 WS_EX_TRANSPARENT = 0x00000020
 WS_EX_LAYERED = 0x00080000
+WS_EX_TOPMOST = 0x00000008
 
 # Layered window attributes
 LWA_ALPHA = 0x00000002
@@ -45,6 +46,10 @@ SWP_NOSIZE = 0x0001
 SWP_NOMOVE = 0x0002
 SWP_NOZORDER = 0x0004
 SWP_NOACTIVATE = 0x0010
+
+# SetWindowPos z-order inserts
+HWND_TOPMOST = wintypes.HWND(-1)
+HWND_NOTOPMOST = wintypes.HWND(-2)
 
 # Window relationships
 GW_OWNER = 4
@@ -272,6 +277,25 @@ def is_cloaked(hwnd: int) -> bool:
 
 def ex_style(hwnd: int) -> int:
     return int(_GET_LONG(hwnd, GWL_EXSTYLE))
+
+
+def is_topmost(hwnd: int) -> bool:
+    return bool(ex_style(hwnd) & WS_EX_TOPMOST)
+
+
+def set_topmost(hwnd: int, enabled: bool) -> bool:
+    """Insert or remove ``hwnd`` from the always-on-top z-order band."""
+    return bool(
+        user32.SetWindowPos(
+            hwnd,
+            HWND_TOPMOST if enabled else HWND_NOTOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE,
+        )
+    )
 
 
 def set_ex_style(hwnd: int, style: int) -> None:

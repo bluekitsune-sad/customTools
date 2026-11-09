@@ -37,7 +37,9 @@ python main.py
    title bar and window controls.
 5. Choose **Interactive** to pin it at that position and keep using it.
 6. Or choose **Click-through** to pin it and let mouse clicks reach the window
-   behind it. Only use this while you do not need to click the target itself.
+   behind it. While this mode is active the target is kept above other windows,
+   so forwarded clicks do not make it disappear behind them. Only use this while
+   you do not need to click the target itself.
 7. Exit at any time:
    - press `Ctrl + Alt + Esc` from anywhere, or
    - click **Restore & Exit Mode**.
@@ -61,7 +63,7 @@ it touched.
 | Concern | Approach |
 | --- | --- |
 | Opacity | Adds `WS_EX_LAYERED` to the target and applies `SetLayeredWindowAttributes`. |
-| Click-through | Adds `WS_EX_TRANSPARENT` (plus `WS_EX_LAYERED`, required for reliable hit testing) so mouse input skips the target. |
+| Click-through | Adds `WS_EX_TRANSPARENT` (plus `WS_EX_LAYERED`, required for reliable hit testing) so mouse input skips the target, and temporarily makes the target topmost so forwarded clicks do not raise the window behind and hide the overlay. The target's original z-order is restored when the mode ends. |
 | Style ownership | One controller owns `WS_EX_LAYERED` and `WS_EX_TRANSPARENT` and recomputes them from the active features, so opacity and click-through can be toggled in any order and still restore the window's original style and alpha. |
 | Movement lock | Subscribes to `EVENT_OBJECT_LOCATIONCHANGE` and moves the window back to its anchor position when it is dragged. Input is never blocked, disabled, or made click-through to lock movement. |
 | Exit | `RegisterHotKey` for a system-wide `Ctrl+Alt+Esc`, plus an always-visible button. |

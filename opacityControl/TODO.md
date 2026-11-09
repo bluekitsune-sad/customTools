@@ -39,6 +39,9 @@ factory stages below; a phase is done only when its checks pass.
       states
 - [x] FR-7 Click-through Mode: pins the target, mouse input reaches the window
       behind, opacity and keyboard focus untouched
+- [x] FR-7 target stays topmost while click-through is active, so forwarded
+      clicks do not raise the window behind and hide the overlay; original
+      topmost state restored on exit
 - [x] FR-7 single style owner recomputes flags from active features, so
       toggling opacity and click-through in any order restores the original
       style exactly

@@ -37,8 +37,8 @@ class Mode(str, Enum):
             Mode.MOVE: "Position unlocked: drag the window by its title bar. Input stays live.",
             Mode.INTERACTIVE: "Position locked: use the window normally.",
             Mode.CLICK_THROUGH: (
-                "Mouse clicks pass to the window behind. "
-                "Use the shortcut or Restore & Exit Mode to recover."
+                "Mouse clicks pass to the window behind and the target stays "
+                "on top. Use the shortcut or Restore & Exit Mode to recover."
             ),
         }[self]
 
